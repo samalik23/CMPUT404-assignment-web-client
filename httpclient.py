@@ -36,30 +36,40 @@ class HTTPResponse(object):
 
 class HTTPClient(object):
     #def get_host_port(self,url):
-
+    
+    # Connect to socket
     def connect(self, host, port):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.connect((host, port))
         return self.socket
     
+  
     def get_code(self, data):
         if not data:
             return
+        # returns code from request by splitting data by space and grabbing the second index
+        # Converted to float and int to avoid ValueError
+        # Reference: https://stackoverflow.com/questions/1841565/valueerror-invalid-literal-for-int-with-base-10
         code = int(float(data.split(" ")[1]))
         return code
 
+    # Obtain headers from response
     def get_headers(self,data):
         if not data:
             return
         return data.split("\r\n\r\n")[0]
 
+    # Obtain body from response
     def get_body(self, data):
         if not data:
             return
         body = data.split("\r\n\r\n")
+        # If the length of the body is greater than 1 then return the second index
         if (len(body) > 1):
             return body[1]
+        # Otherwise just return body
         return body
+
 
     def sendall(self, data):
         if not data:
@@ -68,26 +78,33 @@ class HTTPClient(object):
         
     def close(self):
         self.socket.close()
-    
+
+    # A function to get information from the parsed URL
+    # Also checks the validity of the hostname, port & path
     def get_parsed(self, url, body):
 
+        # Parsing url here and obtaining information from that
         parsed_url = urllib.parse.urlparse(url)
         port = parsed_url.port
         hostname = parsed_url.hostname
         path = parsed_url.path
 
+        # If we do not have a hostname, return a 400 code response
         if hostname == None:
             return HTTPResponse(400, body)
 
+        # If we do not have a path or it is empty then make path = "/"
         if path == None or path == "":
             path = '/'
 
+        # If we have no port, give a default value
         if port == None:
             if parsed_url.scheme == "http":
                 port = 80
             elif parsed_url.scheme == "https":
                 port = 443 
 
+        # Information returned so other functions can utilize the data
         return parsed_url, port, hostname, path
     
 
@@ -110,19 +127,30 @@ class HTTPClient(object):
         # Parse URL & information 
         parsed_url, port, hostname, path = self.get_parsed(url, body)
 
+        # Connect hostname and port to socket
         self.connect(hostname, port)
 
-        request = "GET {path} HTTP/1.1\r\nHost: {hostname}:{port}\r\nAccept: */*\r\nConnection: Closed\r\n\r\n"
+        # Establish the request message
+        request = f"GET {path} HTTP/1.1\r\nHost: {hostname}\r\nAccept: */*\r\nConnection: close\r\n\r\n"
+
+        # Send the request
         self.sendall(request)
+        
+        # Obtain the response from the webserver
         response = self.recvall(self.socket)
 
+        # If we get no response, we can assume page does not exist
         if response == None:
             return HTTPResponse(404, body)
         
+        # Otherwise, obtain the body and code from getter functions
         body = self.get_body(response)
         code = self.get_code(response)
-
+        
+        # Close the socket connection
         self.close()
+
+        # Return a response with the given code and body
         return HTTPResponse(code, body)
 
     
@@ -131,33 +159,46 @@ class HTTPClient(object):
         code = 500
         body = ""
 
+        # Obtaining parsed and relevant information
         parsed_url, port, hostname, path = self.get_parsed(url, body)
 
-    
+        # Connect the hostname and port to the webserver
         self.connect(hostname, port)
         
+        # If we have no arguments, we have no arguments to send
         if not args: 
             request_body = ""
             content_length = "0"
             content_type = ""
+
+        # If we have arguments, parse the request body, obtain the length of content and define the type of content we are sending
         elif args:
             request_body = urllib.parse.urlencode(args, doseq=True)
             content_length = str(len(request_body))
             content_type = "application/x-www-form-urlencoded"
 
+        # Establish the request message
         request = f"POST {path} HTTP/1.1\r\nHost: {hostname}:{port}\r\nAccept: */*\r\n \
                         Connection: Closed\r\nContent-Length: {content_length}\r\nContent-Type: {content_type}'\r\n\r\n{request_body}"
         
+        # Send the request to the webserver
         self.sendall(request)
+
+        # Obtain response from the webserver
         response = self.recvall(self.socket)
 
+        # If we obtain no response, we can assume page does not exist
         if response == None:
             return HTTPResponse(404, body)
-        
+
+        # Otherwise obtain the body and code
         body = self.get_body(response)
         code = self.get_code(response)
 
+        # Close the connection
         self.close()
+
+        # Return a response with the given code and body
         return HTTPResponse(code, body)
 
     def command(self, url, command="GET", args=None):
