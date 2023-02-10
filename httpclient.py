@@ -32,6 +32,8 @@ class HTTPResponse(object):
         self.code = code
         self.body = body
 
+# Server sends a response to the client such as: HTTP/1.1 CODE RESPONSE HEADER
+
 class HTTPClient(object):
     #def get_host_port(self,url):
 
@@ -39,15 +41,15 @@ class HTTPClient(object):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.connect((host, port))
         return None
-
+    
     def get_code(self, data):
-        return None
-
+        return int(data.split(" ")[1])
+        
     def get_headers(self,data):
-        return None
+        return data.split("\r\n\r\n")[0]
 
     def get_body(self, data):
-        return None
+        return data.split("\r\n\r\n")[1]
     
     def sendall(self, data):
         self.socket.sendall(data.encode('utf-8'))
